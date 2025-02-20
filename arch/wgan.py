@@ -1,19 +1,12 @@
 # https://github.com/igul222/improved_wgan_training/blob/master/gan_cifar.py
 import os
 import random
-import time
-from collections import defaultdict
 from typing import List, Tuple
 
 import numpy as np
 import torch
 from torch import nn
-from torch.nn import functional as F
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
-from arch.utils import model_eval, save_loss_to_csv
-
+from torch.func import vmap, jacrev
 
 class WGANGP(nn.Module):
     def __init__(self, 
@@ -95,7 +88,7 @@ class WGANGP(nn.Module):
             )
             in_feats = h_dim
             im_size = im_size // 2
-        modules.append(nn.Flatten())
+        modules.append(nn.Flatten(start_dim=-3, end_dim=-1))
         modules.append(nn.Linear(self.discriminator_hidden[-1] * im_size * im_size, 1))
         self.discriminator = nn.Sequential(*modules)
         self.discriminator_modules = modules
@@ -119,17 +112,10 @@ class WGANGP(nn.Module):
         '''
         B, C, H, W = real.shape
         eta = torch.rand((B, 1, 1, 1), device=self.device).expand(B, C, H, W)
-        interpolated = eta * real + (1 - eta) * fake # (B, C, H, W)
+        interpolated = (1 - eta) * real + eta * fake # (B, C, H, W)
 
-        interpolated.requires_grad_(True)
-
-        u_interpolated = self.discriminate(interpolated) # (B, 1)
-
-        grads = torch.autograd.grad(u_interpolated, interpolated, 
-                                    grad_outputs=torch.ones(u_interpolated.shape, device=self.device),
-                                    create_graph=True, retain_graph=True)[0] # (B, C, H, W)
-        grads = grads.reshape((B, -1)) # so that we can compute the norm batch-wise
-        grad_norm = torch.norm(grads, dim=1, keepdim=True) # (B, 1)
+        grads = vmap(jacrev(self.discriminate))(interpolated)
+        grad_norm = torch.norm(grads.reshape((B, -1)), p=2, dim=1, keepdim=True)
 
         # NOTE: A modification from the original paper, we accept all gradients <=1, so we add a relu
         # only when grad_norm > 1, we penalize
@@ -244,8 +230,4 @@ class WGANGP(nn.Module):
         if f is not None:
             dict_to_load = torch.load(f, weights_only=False)
         self.load_state_dict(dict_to_load["model"])
-
-    
-
-
 

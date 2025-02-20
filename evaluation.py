@@ -35,7 +35,7 @@ def compute_fid_score(real_im: torch.Tensor, fake_im: torch.Tensor):
     '''
     real_im = interpolate(transform_back(real_im))
     fake_im = interpolate(transform_back(fake_im))
-    metric = FrechetInceptionDistance(feature=64)
+    metric = FrechetInceptionDistance()
     metric.update(real_im, real=True)
     metric.update(fake_im, real=False)
     res = metric.compute()

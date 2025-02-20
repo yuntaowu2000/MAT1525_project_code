@@ -26,7 +26,7 @@ def prepare_data_mnist(root: str = "./data", train_ratio: float=0.8):
     return train_set, test_set
 
 
-def prepare_data_celebA(root: str="./data", train_ratio: float=0.8):
+def prepare_data_celebA(root: str="./data", train_ratio: float=0.8, max_data=100000):
     print("{0:=^80}".format("Preparing data CelebA"))
     os.makedirs(root, exist_ok=True)
     data = SmallCelebA(root, download=False, transform=transforms.Compose([
@@ -35,7 +35,7 @@ def prepare_data_celebA(root: str="./data", train_ratio: float=0.8):
         transforms.Resize((64, 64)),
         lambda x: (x - 0.5) * 2, # convert to [-1, 1]
     ]))
-    len_data = len(data)
+    len_data = min(len(data), max_data)
     print(len_data)
     train_idx = range(int(train_ratio * len_data))
     test_idx = range(int(train_ratio * len_data), len_data)

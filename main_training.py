@@ -75,14 +75,14 @@ def train_beta_vae(dataset_type="mnist", batch_size=64, train_ratio=0.8,
         formatted_train_loss = ", ".join([f'{k}: {v:.3f}' for k, v in train_losses.items()])
         formatted_dev_loss = ", ".join([f'{k}: {v:.3f}' for k, v in dev_losses.items()])
         print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}")
-        print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}", file=log_file)
+        print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}", file=log_file, flush=True)
 
         if (epoch + 1) % eval_steps == 0:
             print("Evaluating...")
             samples = model.sample(16)
             plot_generated_images(samples, fn=os.path.join(model_dir, f"{filename}_epoch{epoch+1}.png"))
 
-            metric = FrechetInceptionDistance(feature=64)
+            metric = FrechetInceptionDistance().to(model.device)
             encoded_zs = torch.empty((0,), device=model.device)
             for step, batch in enumerate(tqdm(test_dataloader, desc=f"test-{epoch}")):
                 batch = batch[0].to(model.device)
@@ -94,6 +94,7 @@ def train_beta_vae(dataset_type="mnist", batch_size=64, train_ratio=0.8,
                 torch.cuda.empty_cache()
             fid = metric.compute().item()
             kld = compute_kl_divergence(encoded_zs).item()
+            print(f"epoch: {epoch}, kld: {kld:.2f}, fid: {fid:.2f}")
             curr_df = pd.DataFrame({"epoch": [epoch], "KLD": [kld], "FID": [fid]})
             kld_fid_scores = curr_df if kld_fid_scores.empty else pd.concat([kld_fid_scores, curr_df], ignore_index=True)
         gc.collect()
@@ -165,13 +166,13 @@ def train_wae_gan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
         formatted_train_loss = ", ".join([f'{k}: {v:.3f}' for k, v in train_losses.items()])
         formatted_dev_loss = ", ".join([f'{k}: {v:.3f}' for k, v in dev_losses.items()])
         print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}")
-        print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}", file=log_file)
+        print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}", file=log_file, flush=True)
         if (epoch + 1) % eval_steps == 0:
             print("Evaluating...")
             samples = model.sample(16)
             plot_generated_images(samples, fn=os.path.join(model_dir, f"{filename}_epoch{epoch+1}.png"))
 
-            metric = FrechetInceptionDistance(feature=64)
+            metric = FrechetInceptionDistance().to(model.device)
             encoded_zs = torch.empty((0,), device=model.device)
             for step, batch in enumerate(tqdm(test_dataloader, desc=f"test-{epoch}")):
                 batch = batch[0].to(model.device)
@@ -184,6 +185,7 @@ def train_wae_gan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
                 torch.cuda.empty_cache()
             fid = metric.compute().item()
             kld = compute_kl_divergence(encoded_zs).item()
+            print(f"epoch: {epoch}, kld: {kld:.2f}, fid: {fid:.2f}")
             curr_df = pd.DataFrame({"epoch": [epoch], "KLD": [kld], "FID": [fid]})
             kld_fid_scores =  curr_df if kld_fid_scores.empty else pd.concat([kld_fid_scores, curr_df], ignore_index=True)
         gc.collect()
@@ -201,7 +203,7 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
                  latent_dim=128,
                  generator_hidden = [1024, 512, 256, 128],
                  discriminator_hidden = [128, 256, 512, 1024],
-                 beta = 1,
+                 beta = 10,
                     lr_gen=2e-4, lr_dis=2e-4, 
                     epochs=100, n_critic=5, eval_steps=10,
                     model_dir="./models/wgan/", filename="model"):
@@ -210,8 +212,8 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
     train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
     model = WGANGP(feat_size, latent_dim, generator_hidden, discriminator_hidden, beta)
-    optimizer_gen = torch.optim.Adam(model.generator.parameters(), lr_gen)
-    optimizer_dis = torch.optim.Adam(model.discriminator.parameters(), lr_dis)
+    optimizer_gen = torch.optim.Adam(model.generator.parameters(), lr_gen, betas=(0.5, 0.9))
+    optimizer_dis = torch.optim.Adam(model.discriminator.parameters(), lr_dis, betas=(0.5, 0.9))
     
     ## run for the specified number of epochs
     if not os.path.exists(model_dir):
@@ -239,7 +241,7 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
         num_batches = 0
         for step, batch in enumerate(tqdm(train_dataloader, desc=f"train-{epoch}")):
             batch = batch[0].to(model.device)
-            losses = model.train_step(batch, optimizer_gen, optimizer_dis, 
+            losses = model.train_step(batch, optimizer_dis, optimizer_gen, 
                                         generator_step=((step + 1) % n_critic == 0))
 
             for k, v in losses.items():
@@ -257,14 +259,14 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
         formatted_train_loss = ", ".join([f'{k}: {v:.3f}' for k, v in train_losses.items()])
         formatted_dev_loss = ", ".join([f'{k}: {v:.3f}' for k, v in dev_losses.items()])
         print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}")
-        print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}", file=log_file)
+        print(f"epoch {epoch}: \ntrain loss :: {formatted_train_loss}, \ndev loss :: {formatted_dev_loss}, \ntime elapsed :: {time.time() - epoch_start_time}", file=log_file, flush=True)
 
         if (epoch + 1) % eval_steps == 0:
             print("Evaluating...")
             samples = model.sample(16)
             plot_generated_images(samples, fn=os.path.join(model_dir, f"{filename}_epoch{epoch+1}.png"))
 
-            metric = FrechetInceptionDistance(feature=64)
+            metric = FrechetInceptionDistance().to(model.device)
             for step, batch in enumerate(tqdm(test_dataloader, desc=f"test-{epoch}")):
                 batch = batch[0].to(model.device)
                 fake_im = model.sample(batch.shape[0])
@@ -272,6 +274,7 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
                 gc.collect()
                 torch.cuda.empty_cache()
             fid = metric.compute().item()
+            print(f"epoch: {epoch}, fid: {fid:.2f}")
             curr_df = pd.DataFrame({"epoch": [epoch], "FID": [fid]})
             kld_fid_scores = curr_df if kld_fid_scores.empty else pd.concat([kld_fid_scores, curr_df], ignore_index=True)
         gc.collect()
@@ -285,26 +288,26 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
 
 
 if __name__ == "__main__":
-    train_beta_vae(dataset_type="mnist", 
-                   batch_size=64, train_ratio=0.8,
-                feat_size=(1, 32, 32),
-                latent_dim=32,
-                hidden_dims = [32, 32, 64, 64],
-                beta = 1e-3,
-                lr=1e-4, epochs=100,
-                eval_steps=10,
-                model_dir="./models/beta_vae_test/", filename="model")
+    # train_beta_vae(dataset_type="mnist", 
+    #                batch_size=64, train_ratio=0.8,
+    #             feat_size=(1, 32, 32),
+    #             latent_dim=32,
+    #             hidden_dims = [32, 32, 64, 64],
+    #             beta = 1e-3,
+    #             lr=1e-4, 
+    #             epochs=100, eval_steps=10,
+    #             model_dir="./models/beta_vae_test/", filename="model")
     
-    train_wae_gan(dataset_type="mnist", 
-                  batch_size=64, train_ratio=0.8,
-                 feat_size=(1, 32, 32),
-                latent_dim = 8,
-                hidden_dims = [32, 32, 64, 64],
-                discriminator_hidden = [64] * 4,
-                beta = 1,
-                lr_enc_dec=3e-4, lr_dis=1e-3, 
-                epochs=100, eval_steps=10,
-                model_dir="./models/wae_gan_test/", filename="model")
+    # train_wae_gan(dataset_type="mnist", 
+    #               batch_size=64, train_ratio=0.8,
+    #              feat_size=(1, 32, 32),
+    #             latent_dim = 8,
+    #             hidden_dims = [32, 32, 64, 64],
+    #             discriminator_hidden = [64] * 4,
+    #             beta = 1,
+    #             lr_enc_dec=3e-4, lr_dis=1e-3, 
+    #             epochs=100, eval_steps=10,
+    #             model_dir="./models/wae_gan_test/", filename="model")
     
     train_wgan(dataset_type="mnist", 
                batch_size=64, train_ratio=0.8,
@@ -312,7 +315,7 @@ if __name__ == "__main__":
                  latent_dim=128,
                  generator_hidden = [256, 128, 64],
                  discriminator_hidden = [64, 128, 256],
-                 beta = 1,
+                 beta = 10,
                     lr_gen=2e-4, lr_dis=2e-4, 
-                    epochs=200, n_critic=5, eval_steps=10,
+                    epochs=100, n_critic=5, eval_steps=10,
                     model_dir="./models/wgan_test/", filename="model")
