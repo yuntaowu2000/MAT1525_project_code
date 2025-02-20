@@ -144,7 +144,7 @@ class BetaVAE(nn.Module):
         recons_loss = F.mse_loss(recons, x)
         kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - torch.square(mu) - torch.exp(log_var), dim = 1), dim = 0)
         loss = recons_loss + self.beta * kld_loss
-        return {'loss': loss, 'Reconstruction_Loss': recons_loss, 'KLD': kld_loss}
+        return {"loss_reconstruction": recons_loss, "loss_kl": kld_loss, "total_loss": loss}
     
     def save_weights(self, model_dir, filename):
         dict_to_save = {
