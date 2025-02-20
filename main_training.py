@@ -25,11 +25,12 @@ def train_beta_vae(dataset_type="mnist", batch_size=64, train_ratio=0.8,
                 beta = 1e-3,
                 lr=1e-4, epochs=100,
                 eval_steps=10,
+                num_workers=0,
                 model_dir="./models/beta_vae/", filename="model"):
     train_set, test_set = prepare_data(dataset_type, train_ratio)
     set_seeds(0)
-    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
+    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     model = BetaVAE(feat_size, latent_dim, hidden_dims, beta)
     optimizer = torch.optim.Adam(model.parameters(), lr)
         
@@ -114,11 +115,12 @@ def train_wae_gan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
                 beta = 1,
                 lr_enc_dec=3e-4, lr_dis=1e-3, 
                 epochs=100, eval_steps=10,
+                num_workers=0,
                 model_dir="./models/wae_gan/", filename="model"):
     train_set, test_set = prepare_data(dataset_type, train_ratio)
     set_seeds(0)
-    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
+    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     model = WAEGAN(feat_size, latent_dim, hidden_dims, discriminator_hidden, beta)
 
     optimizer_dec_enc = torch.optim.Adam(list(model.encoder.parameters()) + list(model.decoder.parameters()), lr_enc_dec)
@@ -206,11 +208,12 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
                  beta = 10,
                     lr_gen=2e-4, lr_dis=2e-4, 
                     epochs=100, n_critic=5, eval_steps=10,
+                    num_workers=0,
                     model_dir="./models/wgan/", filename="model"):
     train_set, test_set = prepare_data(dataset_type, train_ratio)
     set_seeds(0)
-    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
+    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     model = WGANGP(feat_size, latent_dim, generator_hidden, discriminator_hidden, beta)
     optimizer_gen = torch.optim.Adam(model.generator.parameters(), lr_gen, betas=(0.5, 0.9))
     optimizer_dis = torch.optim.Adam(model.discriminator.parameters(), lr_dis, betas=(0.5, 0.9))
@@ -288,6 +291,45 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
 
 
 if __name__ == "__main__":
+    print("{0:=^80}".format("MNIST VAE"))
+    train_beta_vae(dataset_type="mnist", 
+                   batch_size=64, train_ratio=0.8,
+                feat_size=(1, 32, 32),
+                latent_dim=32,
+                hidden_dims = [32, 32, 64, 64],
+                beta = 1e-3,
+                lr=1e-4, 
+                epochs=100, eval_steps=10,
+                num_workers=0,
+                model_dir="./models/beta_vae_mnist/", filename="model")
+    
+    print("{0:=^80}".format("MNIST WAE-GAN"))
+    train_wae_gan(dataset_type="mnist", 
+                  batch_size=64, train_ratio=0.8,
+                 feat_size=(1, 32, 32),
+                latent_dim = 64,
+                hidden_dims = [32, 32, 64, 64],
+                discriminator_hidden = [64] * 4,
+                beta = 1,
+                lr_enc_dec=3e-4, lr_dis=1e-3, 
+                epochs=100, eval_steps=10,
+                num_workers=0,
+                model_dir="./models/wae_gan_mnist/", filename="model")
+    
+    print("{0:=^80}".format("MNIST WGAN-GP"))
+    train_wgan(dataset_type="mnist", 
+               batch_size=64, train_ratio=0.8,
+                feat_size = (1, 32, 32),
+                 latent_dim=128,
+                 generator_hidden = [512, 256, 128],
+                 discriminator_hidden = [128, 256, 512],
+                 beta = 10,
+                    lr_gen=2e-4, lr_dis=2e-4, 
+                    epochs=100, n_critic=5, eval_steps=10,
+                    num_workers=0,
+                    model_dir="./models/wgan_mnist/", filename="model")
+    
+    print("{0:=^80}".format("CelebA VAE"))
     train_beta_vae(dataset_type="celeba", 
                    batch_size=64, train_ratio=0.8,
                 feat_size=(3, 64, 64),
@@ -296,8 +338,10 @@ if __name__ == "__main__":
                 beta = 1e-3,
                 lr=1e-4, 
                 epochs=100, eval_steps=10,
-                model_dir="./models/beta_vae_test/", filename="model")
+                num_workers=8,
+                model_dir="./models/beta_vae_celeba/", filename="model")
     
+    print("{0:=^80}".format("CelebA WAE-GAN"))
     train_wae_gan(dataset_type="celeba", 
                   batch_size=64, train_ratio=0.8,
                  feat_size=(3, 64, 64),
@@ -307,8 +351,10 @@ if __name__ == "__main__":
                 beta = 1,
                 lr_enc_dec=3e-4, lr_dis=1e-3, 
                 epochs=100, eval_steps=10,
-                model_dir="./models/wae_gan_test/", filename="model")
+                num_workers=8,
+                model_dir="./models/wae_gan_celeba/", filename="model")
     
+    print("{0:=^80}".format("CelebA WGAN"))
     train_wgan(dataset_type="celeba", 
                batch_size=64, train_ratio=0.8,
                 feat_size = (3, 64, 64),
@@ -318,4 +364,5 @@ if __name__ == "__main__":
                  beta = 10,
                     lr_gen=2e-4, lr_dis=2e-4, 
                     epochs=100, n_critic=5, eval_steps=10,
-                    model_dir="./models/wgan_test/", filename="model")
+                    num_workers=8,
+                    model_dir="./models/wgan_celeba/", filename="model")
