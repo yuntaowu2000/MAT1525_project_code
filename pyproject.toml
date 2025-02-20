@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "mat1525-project-code"
+version = "0.1.0"
+description = ""
+authors = ["yuntaowu2000 <49249544+yuntaowu2000@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+torch = "^2.6.0"
+numpy = "^2.2.3"
+tqdm = "^4.67.1"
+torchvision = "^0.21.0"
+pandas = "^2.2.3"
+openpyxl = "^3.1.5"
+pyarrow = "^19.0.1"
+pillow = "^11.1.0"
+torchmetrics = "^1.6.1"
+matplotlib = "^3.10.0"
+torch-fidelity = "^0.3.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
