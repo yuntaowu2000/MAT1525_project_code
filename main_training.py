@@ -84,17 +84,24 @@ def train_beta_vae(dataset_type="mnist", batch_size=64, train_ratio=0.8,
             plot_generated_images(samples, fn=os.path.join(model_dir, f"{filename}_epoch{epoch+1}.png"))
 
             metric = FrechetInceptionDistance().to(model.device)
-            encoded_zs = torch.empty((0,), device=model.device)
+            '''
+            Since the deterministic encoder always outputs the same z given an input x, 
+            the posterior distribution collapses to a delta function centered at z. 
+            The KL term can be interpreted as the cost of moving the deterministic encoding towards a Gaussian prior.
+            '''
+            z_sum = 0
+            elem_count = 0
             for step, batch in enumerate(tqdm(test_dataloader, desc=f"test-{epoch}")):
                 batch = batch[0].to(model.device)
                 encoded_z = model.encode_gaussian(batch)[0]
-                encoded_zs = torch.cat([encoded_zs, encoded_z])
+                z_sum += torch.sum(torch.square(encoded_z)).item()
+                elem_count += encoded_z.shape[0]
                 fake_im = model.sample(batch.shape[0])
                 metric = update_fid_score(metric, batch, fake_im)
                 gc.collect()
                 torch.cuda.empty_cache()
             fid = metric.compute().item()
-            kld = compute_kl_divergence(encoded_zs).item()
+            kld = z_sum / elem_count
             print(f"epoch: {epoch}, kld: {kld:.2f}, fid: {fid:.2f}")
             curr_df = pd.DataFrame({"epoch": [epoch], "KLD": [kld], "FID": [fid]})
             kld_fid_scores = curr_df if kld_fid_scores.empty else pd.concat([kld_fid_scores, curr_df], ignore_index=True)
@@ -175,18 +182,19 @@ def train_wae_gan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
             plot_generated_images(samples, fn=os.path.join(model_dir, f"{filename}_epoch{epoch+1}.png"))
 
             metric = FrechetInceptionDistance().to(model.device)
-            encoded_zs = torch.empty((0,), device=model.device)
+            z_sum = 0
+            elem_count = 0
             for step, batch in enumerate(tqdm(test_dataloader, desc=f"test-{epoch}")):
                 batch = batch[0].to(model.device)
                 encoded_z = model.encode(batch)
-                encoded_zs = torch.cat([encoded_zs, encoded_z])
-
+                z_sum += torch.sum(torch.square(encoded_z)).item()
+                elem_count += encoded_z.shape[0]
                 fake_im = model.sample(batch.shape[0])
                 metric = update_fid_score(metric, batch, fake_im)
                 gc.collect()
                 torch.cuda.empty_cache()
             fid = metric.compute().item()
-            kld = compute_kl_divergence(encoded_zs).item()
+            kld = z_sum / elem_count
             print(f"epoch: {epoch}, kld: {kld:.2f}, fid: {fid:.2f}")
             curr_df = pd.DataFrame({"epoch": [epoch], "KLD": [kld], "FID": [fid]})
             kld_fid_scores =  curr_df if kld_fid_scores.empty else pd.concat([kld_fid_scores, curr_df], ignore_index=True)
@@ -291,78 +299,83 @@ def train_wgan(dataset_type="mnist", batch_size=64, train_ratio=0.8,
 
 
 if __name__ == "__main__":
-    print("{0:=^80}".format("MNIST VAE"))
-    train_beta_vae(dataset_type="mnist", 
-                   batch_size=64, train_ratio=0.8,
-                feat_size=(1, 32, 32),
-                latent_dim=32,
-                hidden_dims = [32, 32, 64, 64],
-                beta = 1e-3,
-                lr=1e-4, 
-                epochs=100, eval_steps=10,
-                num_workers=0,
-                model_dir="./models/beta_vae_mnist/", filename="model")
-    
-    print("{0:=^80}".format("MNIST WAE-GAN"))
-    train_wae_gan(dataset_type="mnist", 
-                  batch_size=64, train_ratio=0.8,
-                 feat_size=(1, 32, 32),
-                latent_dim = 64,
-                hidden_dims = [32, 32, 64, 64],
-                discriminator_hidden = [64] * 4,
-                beta = 1,
-                lr_enc_dec=3e-4, lr_dis=1e-3, 
-                epochs=100, eval_steps=10,
-                num_workers=0,
-                model_dir="./models/wae_gan_mnist/", filename="model")
-    
-    print("{0:=^80}".format("MNIST WGAN-GP"))
-    train_wgan(dataset_type="mnist", 
-               batch_size=64, train_ratio=0.8,
-                feat_size = (1, 32, 32),
-                 latent_dim=128,
-                 generator_hidden = [512, 256, 128],
-                 discriminator_hidden = [128, 256, 512],
-                 beta = 10,
-                    lr_gen=2e-4, lr_dis=2e-4, 
-                    epochs=100, n_critic=5, eval_steps=10,
+    if not os.path.exists("./models/beta_vae_mnist/"):
+        print("{0:=^80}".format("MNIST VAE"))
+        train_beta_vae(dataset_type="mnist", 
+                    batch_size=64, train_ratio=0.8,
+                    feat_size=(1, 32, 32),
+                    latent_dim=32,
+                    hidden_dims = [32, 32, 64, 64],
+                    beta = 1e-3,
+                    lr=1e-4, 
+                    epochs=2, eval_steps=1,
                     num_workers=0,
-                    model_dir="./models/wgan_mnist/", filename="model")
+                    model_dir="./models/beta_vae_mnist/", filename="model")
+    if not os.path.exists("./models/wae_gan_mnist/"):
+        print("{0:=^80}".format("MNIST WAE-GAN"))
+        train_wae_gan(dataset_type="mnist", 
+                    batch_size=64, train_ratio=0.8,
+                    feat_size=(1, 32, 32),
+                    latent_dim = 8,
+                    hidden_dims = [32, 32, 64, 64],
+                    discriminator_hidden = [64] * 4,
+                    beta = 1,
+                    lr_enc_dec=3e-4, lr_dis=1e-3, 
+                    epochs=100, eval_steps=10,
+                    num_workers=0,
+                    model_dir="./models/wae_gan_mnist/", filename="model")
     
-    print("{0:=^80}".format("CelebA VAE"))
-    train_beta_vae(dataset_type="celeba", 
-                   batch_size=64, train_ratio=0.8,
-                feat_size=(3, 64, 64),
-                latent_dim=32,
-                hidden_dims = [32, 32, 64, 64],
-                beta = 1e-3,
-                lr=1e-4, 
-                epochs=100, eval_steps=10,
-                num_workers=8,
-                model_dir="./models/beta_vae_celeba/", filename="model")
+    if not os.path.exists("./models/wgan_mnist/"):
+        print("{0:=^80}".format("MNIST WGAN-GP"))
+        train_wgan(dataset_type="mnist", 
+                batch_size=64, train_ratio=0.8,
+                    feat_size = (1, 32, 32),
+                    latent_dim=128,
+                    generator_hidden = [512, 256, 128],
+                    discriminator_hidden = [128, 256, 512],
+                    beta = 10,
+                        lr_gen=2e-4, lr_dis=2e-4, 
+                        epochs=100, n_critic=5, eval_steps=10,
+                        num_workers=0,
+                        model_dir="./models/wgan_mnist/", filename="model")
     
-    print("{0:=^80}".format("CelebA WAE-GAN"))
-    train_wae_gan(dataset_type="celeba", 
-                  batch_size=64, train_ratio=0.8,
-                 feat_size=(3, 64, 64),
-                latent_dim = 64,
-                hidden_dims = [128, 256, 512, 1024],
-                discriminator_hidden = [512] * 4,
-                beta = 1,
-                lr_enc_dec=3e-4, lr_dis=1e-3, 
-                epochs=100, eval_steps=10,
-                num_workers=8,
-                model_dir="./models/wae_gan_celeba/", filename="model")
-    
-    print("{0:=^80}".format("CelebA WGAN"))
-    train_wgan(dataset_type="celeba", 
-               batch_size=64, train_ratio=0.8,
-                feat_size = (3, 64, 64),
-                 latent_dim=128,
-                 generator_hidden = [1024, 512, 256, 128],
-                 discriminator_hidden = [128, 256, 512, 1024],
-                 beta = 10,
-                    lr_gen=2e-4, lr_dis=2e-4, 
-                    epochs=100, n_critic=5, eval_steps=10,
+    if not os.path.exists("./models/beta_vae_celeba/"):
+        print("{0:=^80}".format("CelebA VAE"))
+        train_beta_vae(dataset_type="celeba", 
+                    batch_size=64, train_ratio=0.8,
+                    feat_size=(3, 64, 64),
+                    latent_dim=32,
+                    hidden_dims = [32, 32, 64, 64],
+                    beta = 1e-3,
+                    lr=1e-4, 
+                    epochs=100, eval_steps=10,
                     num_workers=8,
-                    model_dir="./models/wgan_celeba/", filename="model")
+                    model_dir="./models/beta_vae_celeba/", filename="model")
+    
+    if not os.path.exists("./models/wae_gan_celeba/"):
+        print("{0:=^80}".format("CelebA WAE-GAN"))
+        train_wae_gan(dataset_type="celeba", 
+                    batch_size=64, train_ratio=0.8,
+                    feat_size=(3, 64, 64),
+                    latent_dim = 64,
+                    hidden_dims = [128, 256, 512, 1024],
+                    discriminator_hidden = [512] * 4,
+                    beta = 1,
+                    lr_enc_dec=3e-4, lr_dis=1e-3, 
+                    epochs=100, eval_steps=10,
+                    num_workers=0,
+                    model_dir="./models/wae_gan_celeba/", filename="model")
+    
+    if not os.path.exists("./models/wgan_celeba/"):
+        print("{0:=^80}".format("CelebA WGAN"))
+        train_wgan(dataset_type="celeba", 
+                batch_size=64, train_ratio=0.8,
+                    feat_size = (3, 64, 64),
+                    latent_dim=128,
+                    generator_hidden = [1024, 512, 256, 128],
+                    discriminator_hidden = [128, 256, 512, 1024],
+                    beta = 10,
+                        lr_gen=2e-4, lr_dis=2e-4, 
+                        epochs=100, n_critic=5, eval_steps=10,
+                        num_workers=0,
+                        model_dir="./models/wgan_celeba/", filename="model")

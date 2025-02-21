@@ -135,7 +135,7 @@ class WAEGAN(nn.Module):
                 z = m(z)
             return z
         d_z = self.discriminator(z)
-        return d_z
+        return torch.clamp(d_z, 1e-5, 1-1e-5) # add a clip to avoid nan
     
     def set_param_require_grad(self, module: nn.Module, require_grad: bool = False):
         for p in module.parameters():
