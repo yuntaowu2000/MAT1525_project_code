@@ -308,7 +308,7 @@ if __name__ == "__main__":
                     hidden_dims = [32, 32, 64, 64],
                     beta = 1e-3,
                     lr=1e-4, 
-                    epochs=2, eval_steps=1,
+                    epochs=100, eval_steps=10,
                     num_workers=0,
                     model_dir="./models/beta_vae_mnist/", filename="model")
     if not os.path.exists("./models/wae_gan_mnist/"):
@@ -363,7 +363,7 @@ if __name__ == "__main__":
                     beta = 1,
                     lr_enc_dec=3e-4, lr_dis=1e-3, 
                     epochs=100, eval_steps=10,
-                    num_workers=0,
+                    num_workers=8,
                     model_dir="./models/wae_gan_celeba/", filename="model")
     
     if not os.path.exists("./models/wgan_celeba/"):
@@ -377,5 +377,5 @@ if __name__ == "__main__":
                     beta = 10,
                         lr_gen=2e-4, lr_dis=2e-4, 
                         epochs=100, n_critic=5, eval_steps=10,
-                        num_workers=0,
+                        num_workers=8,
                         model_dir="./models/wgan_celeba/", filename="model")

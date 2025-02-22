@@ -129,6 +129,13 @@ class WAEGAN(nn.Module):
         samples = self.decode(z)
         return samples
     
+    def generate(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Given an input image x, returns the reconstructed image
+        """
+        z = self.encode(x)
+        return self.decode(z)
+    
     def discriminate(self, z: torch.Tensor, debug=False) -> torch.Tensor:
         if debug:
             for m in self.discriminator_module:

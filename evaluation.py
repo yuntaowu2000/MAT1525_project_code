@@ -95,9 +95,18 @@ def plot_loss(loss_df: pd.DataFrame, losses_to_plot: Dict[str, str], fn: str="")
 
 def plot_fid_score(fid_df: pd.DataFrame, fn: str = ""):
     fig, ax = plt.subplots(1, 1, figsize=(10, 5))
-    ax.plot(fid_df["epoch"], fid_df["fid"], label="FID")
+    ax.plot(fid_df["epoch"], fid_df["FID"], label="FID")
     ax.set_xlabel("Epochs")
     ax.set_ylabel("FID")
+    if "KLD" in fid_df.columns:
+        twin_ax = ax.twinx()
+        twin_ax.set_ylabel("KLD")
+        twin_ax.plot(fid_df["epoch"], fid_df["KLD"], label="KLD", color="orange")
+        ax_lines, ax_labels = ax.get_legend_handles_labels()
+        twinax_lines, twinax_labels = twin_ax.get_legend_handles_labels()
+        ax_lines.extend(twinax_lines)
+        ax_labels.extend(twinax_labels)
+        ax.legend(ax_lines, ax_labels, loc="upper right")
     plt.tight_layout()
     if fn == "":
         plt.show()
