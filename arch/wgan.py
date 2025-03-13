@@ -228,6 +228,6 @@ class WGANGP(nn.Module):
         '''
         assert (f is not None) or (dict_to_load is not None), "One of file path or dict_to_load must not be None"
         if f is not None:
-            dict_to_load = torch.load(f, weights_only=False)
+            dict_to_load = torch.load(f, weights_only=False, map_location=self.device)
         self.load_state_dict(dict_to_load["model"])
 
